@@ -166,6 +166,20 @@
   .fav-note{font-size:12.5px; color:var(--ink-2); margin-top:3px; white-space:pre-wrap; overflow-wrap:anywhere}
   .empty{font-size:13px; color:var(--ink-2); font-style:italic}
 
+  /* a saved design shows all three colors at once, in roughly their real proportions */
+  .dz{position:relative; width:46px; height:46px; border-radius:8px; flex:0 0 auto;
+      border:1px solid rgba(0,0,0,.22); overflow:hidden; padding:0; display:block}
+  .dz i{position:absolute; left:0; right:0; top:24%; height:22%; display:block}
+  .dz b{position:absolute; left:50%; top:9%; width:34%; height:11%; border-radius:2px;
+        transform:translateX(-50%); display:block}
+  .design{display:flex; gap:11px; align-items:flex-start; padding:9px; border-radius:8px;
+          background:var(--surface-2); position:relative}
+  .design-body{min-width:0; flex:1}
+  .design-name{font-size:13.5px; font-weight:600; overflow-wrap:anywhere}
+  .design-hex{font-family:var(--mono); font-size:11px; color:var(--ink-2); overflow-wrap:anywhere}
+  .design .rm{position:static; opacity:.6; width:24px; height:24px; align-self:center}
+  .design:hover .rm{opacity:1}
+
   .toast{position:fixed; left:50%; top:18px; transform:translateX(-50%);
          max-width:min(440px, calc(100vw - 32px)); text-align:center;
          background:var(--ink); color:var(--ground); padding:9px 17px; border-radius:99px;
@@ -261,6 +275,17 @@
       </section>
 
       <section class="card">
+        <p class="eyebrow">Saved designs</p>
+        <div class="row" style="margin-bottom:12px">
+          <input type="text" id="designName" maxlength="80"
+                 placeholder="Name this design&hellip;" aria-label="Name for this design"
+                 style="flex:1; min-width:140px">
+          <button class="btn btn-primary" id="saveDesign">Save this design</button>
+        </div>
+        <div class="favs" id="designs"></div>
+      </section>
+
+      <section class="card">
         <p class="eyebrow">Share &amp; hand off</p>
         <div class="row">
           <button class="btn btn-primary" id="shareBtn">Copy my board</button>
@@ -311,6 +336,7 @@ const DEFAULT_STATE = () => ({
   bd:'grey', part:'body',
   colors:{body:'#F3E5D1', strap:'#E3CBA7', logo:'#1B1C1A'},
   swatches: PRESETS.map(p => ({...p, src:'', note:'', fav:false, custom:false})),
+  designs: [],
   sel:'cream',
 });
 let S = DEFAULT_STATE();
@@ -338,6 +364,10 @@ const swatch = id => S.swatches.find(s=>s.id===id);
 const esc = v => String(v==null?'':v).replace(/[&<>"']/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const str = (v,max) => (typeof v==='string' ? v : '').slice(0,max);
+/* Date.now() alone collides when two things are created in the same millisecond,
+   which produces two entries sharing an id. */
+let uidSeq = 0;
+const uid = prefix => prefix + Date.now().toString(36) + (uidSeq++).toString(36);
 
 /* A board arriving from a share link or the paste box is untrusted text. */
 function sanitize(s){
@@ -345,7 +375,7 @@ function sanitize(s){
   const out = {
     bd:   Object.keys(BACKDROPS).includes(s.bd) ? s.bd : d.bd,
     part: PARTS.some(p=>p.key===s.part) ? s.part : d.part,
-    colors:{}, swatches:[], sel:''
+    colors:{}, swatches:[], designs:[], sel:''
   };
   PARTS.forEach(p=>{ out.colors[p.key] = norm(s.colors?.[p.key]) || d.colors[p.key]; });
   const seen = new Set();
@@ -357,6 +387,19 @@ function sanitize(s){
     out.swatches.push({id, hex, name:str(raw?.name,120), pantone:str(raw?.pantone,60),
                        src:str(raw?.src,80), note:str(raw?.note,4000),
                        fav:!!raw?.fav, custom:!!raw?.custom});
+  });
+  const dseen = new Set();
+  (Array.isArray(s.designs) ? s.designs : []).slice(0,80).forEach((raw,i)=>{
+    const c = {};
+    for(const p of PARTS){
+      const h = norm(raw?.colors?.[p.key]);
+      if(!h) return;                       // a design missing a part is not a design
+      c[p.key] = h;
+    }
+    let id = str(raw?.id,40) || 'd'+i;
+    while(dseen.has(id)) id += '_';
+    dseen.add(id);
+    out.designs.push({id, name:str(raw?.name,120), colors:c});
   });
   if(!out.swatches.length) out.swatches = d.swatches;
   out.sel = out.swatches.some(w=>w.id===s.sel) ? s.sel : out.swatches[0].id;
@@ -456,11 +499,38 @@ function focusKey(el){
   if(el.dataset.fav)  return ['fav', el.dataset.fav];
   if(el.dataset.pick) return ['pick',el.dataset.pick];
   if(el.dataset.part) return ['part',el.dataset.part];
+  if(el.dataset.load) return ['load',el.dataset.load];
   return null;
+}
+/* Suggest a name from whatever palette colors the design happens to use. */
+function suggestName(c){
+  const nm = k => (S.swatches.find(w=>w.hex===c[k])?.name) || c[k];
+  return `${nm('body')} + ${nm('strap')}`;
+}
+function renderDesigns(){
+  const el=$('#designs');
+  el.innerHTML = S.designs.length ? S.designs.map(d=>`
+    <div class="design">
+      <button class="dz" data-load="${esc(d.id)}" style="background:${esc(d.colors.body)}"
+              aria-label="Load ${esc(d.name || 'this design')}">
+        <i style="background:${esc(d.colors.strap)}"></i>
+        <b style="background:${esc(d.colors.logo)}"></b>
+      </button>
+      <div class="design-body">
+        <div class="design-name">${esc(d.name) || 'Untitled design'}</div>
+        <div class="design-hex">boot ${esc(d.colors.body)} &middot; strap ${esc(d.colors.strap)}</div>
+        <div class="design-hex">logo ${esc(d.colors.logo)}</div>
+      </div>
+      <span class="rm" role="button" tabindex="0" data-drm="${esc(d.id)}"
+            aria-label="Delete ${esc(d.name || 'this design')}" title="Delete this design">&times;</span>
+    </div>`).join('')
+    : '<p class="empty">No designs saved yet. Set the boot, strap and logo, then save the combination here.</p>';
+  const inp=$('#designName');
+  if(document.activeElement!==inp) inp.placeholder = suggestName(S.colors);
 }
 function renderAll(){
   const keep=focusKey(document.activeElement);
-  paintBoot(); renderParts(); renderPalette(); renderDetail(); renderFavs(); save();
+  paintBoot(); renderParts(); renderPalette(); renderDetail(); renderFavs(); renderDesigns(); save();
   if(keep){
     const e2=window.CSS&&CSS.escape?CSS.escape(keep[1]):keep[1];
     const el=document.querySelector(`[data-${keep[0]}="${e2}"]`);
@@ -537,12 +607,43 @@ $('#addSwatch').addEventListener('click', ()=>{
   if(!h){ toast('That is not a valid hex code \u2014 try #E3CBA7'); return; }
   const dupe=S.swatches.find(s=>s.hex===h);
   if(dupe){ S.sel=dupe.id; S.colors[S.part]=h; renderAll(); toast('Already in the palette'); return; }
-  const id='c'+Date.now().toString(36);
+  const id=uid('c');
   S.swatches.push({id,hex:h,name:'',pantone:'',src:'',note:'',fav:false,custom:true});
   S.sel=id; S.colors[S.part]=h;
   $('#hexIn').value=h; $('#picker').value=h;
   renderAll(); $('#dNameIn').focus(); toast('Added to palette');
 });
+
+$('#saveDesign').addEventListener('click', ()=>{
+  const name = ($('#designName').value || '').trim() || suggestName(S.colors);
+  const colors = {};
+  PARTS.forEach(p=>{ colors[p.key] = S.colors[p.key]; });
+  const same = S.designs.find(d=>PARTS.every(p=>d.colors[p.key]===colors[p.key]));
+  if(same){ toast(`Already saved as "${same.name || 'Untitled design'}"`); return; }
+  S.designs.unshift({id:uid('d'), name:name.slice(0,120), colors});
+  $('#designName').value='';
+  renderAll(); toast(`Saved "${name}"`);
+});
+$('#designs').addEventListener('click', e=>{
+  const r=e.target.closest('[data-drm]'); if(r){ removeDesign(r.dataset.drm); return; }
+  const l=e.target.closest('[data-load]'); if(l) loadDesign(l.dataset.load);
+});
+$('#designs').addEventListener('keydown', e=>{
+  if(e.key!=='Enter'&&e.key!==' ') return;
+  const r=e.target.closest('[data-drm]');
+  if(r){ e.preventDefault(); removeDesign(r.dataset.drm); }
+});
+$('#designName').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#saveDesign').click(); });
+function loadDesign(id){
+  const d=S.designs.find(x=>x.id===id); if(!d) return;
+  PARTS.forEach(p=>{ S.colors[p.key]=d.colors[p.key]; });
+  renderAll(); toast(`${d.name || 'Design'} on the boot`);
+}
+function removeDesign(id){
+  const i=S.designs.findIndex(d=>d.id===id); if(i<0) return;
+  const gone=S.designs[i]; S.designs.splice(i,1);
+  renderAll(); toast(`"${gone.name || 'Untitled design'}" deleted`);
+}
 
 const embedded = () => { try{ return window.top!==window.self; }catch(e){ return true; } };
 $('#shareBtn').addEventListener('click', ()=>{
@@ -567,6 +668,16 @@ $('#specBtn').addEventListener('click', ()=>{
     const s=S.swatches.find(x=>x.hex===hex);
     lines.push(`${p.label.padEnd(6)} ${hex}  ${(s?.name||hex).padEnd(12)} ${s?.pantone||''}`.trimEnd());
   });
+  if(S.designs.length){
+    lines.push('','Saved designs');
+    S.designs.forEach(d=>{
+      lines.push(`  ${d.name || 'Untitled design'}`);
+      PARTS.forEach(p=>{
+        const sw=S.swatches.find(x=>x.hex===d.colors[p.key]);
+        lines.push(`      ${p.label.padEnd(6)} ${d.colors[p.key]}  ${(sw?.name||'').padEnd(12)} ${sw?.pantone||''}`.trimEnd());
+      });
+    });
+  }
   const noted=S.swatches.filter(s=>s.note||s.fav);
   if(noted.length){
     lines.push('','Notes');
