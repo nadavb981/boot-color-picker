@@ -326,22 +326,44 @@ const PARTS = [
 const MASK_PARTS = ['body','strap'];
 const BACKDROPS = {white:'#FFFFFF', grey:'#B8B8B4', dark:'#2A2B2D'};
 const PRESETS = [
-  {id:'cream', hex:'#F3E5D1', name:'Cream',     pantone:'11-0507 TCX Egret'},
+  {id:'bone',  hex:'#F0E8DC', name:'Bone',      pantone:'',
+   note:"Pantone's 2026 Colour of the Year is Cloud Dancer, a soft off-white. This is that idea warmed slightly so it does not read grey in rubber."},
+  {id:'cream', hex:'#F3E5D1', name:'Cream',     pantone:'11-0507 TCX Egret',
+   note:'Sampled from the Wagwear cream boot you sent.'},
+  {id:'camel', hex:'#D4AE7A', name:'Camel',     pantone:'',
+   note:'Sampled off the tan boot photo you sent. This is the real moulding colour, so it is the safest bet of the lot.'},
   {id:'sand',  hex:'#E3CBA7', name:'Sand',      pantone:'13-1014 TCX Beige'},
-  {id:'butter',hex:'#EBCA8A', name:'Butter',    pantone:'13-0922 TCX Sunlight'},
+  {id:'butter',hex:'#EBCA8A', name:'Butter',    pantone:'13-0922 TCX Sunlight',
+   note:'Sampled from the Wagwear butter boot. Sits in the Acacia / Pale Banana family the 2026 runways are pushing.'},
+  {id:'mocha', hex:'#6C5546', name:'Mocha',     pantone:'',
+   note:'Mid-brown in the Mocha Mousse lineage. Reads warmer and less severe than espresso.'},
+  {id:'olive', hex:'#525744', name:'Olive',     pantone:'18-0527 TCX Capulet Olive',
+   note:'Burnt olive is the subdued dark green running through 2026 forecasts.'},
   {id:'choc',  hex:'#4A3728', name:'Chocolate', pantone:'19-1015 TCX Chocolate Brown'},
-  {id:'olive', hex:'#525744', name:'Olive',     pantone:'18-0527 TCX Capulet Olive'},
+  {id:'esp',   hex:'#3B322A', name:'Espresso',  pantone:'',
+   note:"Espresso-charcoal. Benjamin Moore's Silhouette and Krylon's Coffee Bean both landed here for 2026."},
+];
+
+/* Six starting colorways: three light, three dark. The logo always contrasts the
+   boot rather than the strap, because the wordmark sits on the boot's own clip. */
+const PRESET_DESIGNS = [
+  {id:'p1', name:'Bone / Sand',        colors:{body:'#F0E8DC', strap:'#E3CBA7', logo:'#3B322A'}},
+  {id:'p2', name:'Camel / Cream',      colors:{body:'#D4AE7A', strap:'#F3E5D1', logo:'#3B322A'}},
+  {id:'p3', name:'Butter / Cream',     colors:{body:'#EBCA8A', strap:'#F3E5D1', logo:'#4A3728'}},
+  {id:'p4', name:'Espresso / Sand',    colors:{body:'#3B322A', strap:'#E3CBA7', logo:'#F0E8DC'}},
+  {id:'p5', name:'Olive, all tonal',   colors:{body:'#525744', strap:'#525744', logo:'#F0E8DC'}},
+  {id:'p6', name:'Mocha / Espresso',   colors:{body:'#6C5546', strap:'#3B322A', logo:'#F3E5D1'}},
 ];
 const DEFAULT_STATE = () => ({
   bd:'grey', part:'body',
-  colors:{body:'#F3E5D1', strap:'#E3CBA7', logo:'#1B1C1A'},
-  swatches: PRESETS.map(p => ({...p, src:'', note:'', fav:false, custom:false})),
-  designs: [],
-  sel:'cream',
+  colors:{body:'#D4AE7A', strap:'#F3E5D1', logo:'#3B322A'},
+  swatches: PRESETS.map(p => ({...p, src:'', note:p.note||'', pantone:p.pantone||'', fav:false, custom:false})),
+  designs: PRESET_DESIGNS.map(d => ({...d, colors:{...d.colors}})),
+  sel:'camel',
 });
 let S = DEFAULT_STATE();
 
-const KEY = 'goofers-colorway-studio-v2';
+const KEY = 'goofers-colorway-studio-v3';
 const enc = o => btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(o))))
                   .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 const dec = s => JSON.parse(new TextDecoder().decode(
