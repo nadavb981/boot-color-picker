@@ -329,21 +329,26 @@ const PARTS = [
 const MASK_PARTS = ['body','strap'];
 const BACKDROPS = {white:'#FFFFFF', grey:'#B8B8B4', dark:'#2A2B2D'};
 const PRESETS = [
-  {id:'bone',  hex:'#F0E8DC', name:'Bone',      pantone:'',
+  {id:'vanilla',hex:'#FDF0DF', name:'Vanilla',    pantone:''},
+  {id:'bone',   hex:'#F0E8DC', name:'Bone',       pantone:'',
    note:"Pantone's 2026 Colour of the Year is Cloud Dancer, a soft off-white. This is that idea warmed slightly so it does not read grey in rubber."},
-  {id:'cream', hex:'#F3E5D1', name:'Cream',     pantone:'11-0507 TCX Egret',
+  {id:'bmilk',  hex:'#FDE5B8', name:'Buttermilk', pantone:''},
+  {id:'cream',  hex:'#F3E5D1', name:'Cream',      pantone:'11-0507 TCX Egret',
    note:'Sampled from the Wagwear cream boot you sent.'},
-  {id:'camel', hex:'#D4AE7A', name:'Camel',     pantone:'',
-   note:'Sampled off the tan boot photo you sent. This is the real moulding colour, so it is the safest bet of the lot.'},
-  {id:'sand',  hex:'#E3CBA7', name:'Sand',      pantone:'13-1014 TCX Beige'},
-  {id:'butter',hex:'#EBCA8A', name:'Butter',    pantone:'13-0922 TCX Sunlight',
+  {id:'blush',  hex:'#F9B5BA', name:'Blush',      pantone:''},
+  {id:'golden', hex:'#F2CB79', name:'Golden',     pantone:'',
+   note:'Wagwear ship a colourway called Golden; this sits in that family and is the most saturated warm in the palette.'},
+  {id:'butter', hex:'#EBCA8A', name:'Butter',     pantone:'13-0922 TCX Sunlight',
    note:'Sampled from the Wagwear butter boot. Sits in the Acacia / Pale Banana family the 2026 runways are pushing.'},
-  {id:'mocha', hex:'#6C5546', name:'Mocha',     pantone:'',
+  {id:'sand',   hex:'#E3CBA7', name:'Sand',       pantone:'13-1014 TCX Beige'},
+  {id:'camel',  hex:'#D4AE7A', name:'Camel',      pantone:'',
+   note:'Sampled off the tan boot photo you sent. This is the real moulding colour, so it is the safest bet of the lot.'},
+  {id:'mocha',  hex:'#6C5546', name:'Mocha',      pantone:'',
    note:'Mid-brown in the Mocha Mousse lineage. Reads warmer and less severe than espresso.'},
-  {id:'olive', hex:'#525744', name:'Olive',     pantone:'18-0527 TCX Capulet Olive',
+  {id:'olive',  hex:'#525744', name:'Olive',      pantone:'18-0527 TCX Capulet Olive',
    note:'Burnt olive is the subdued dark green running through 2026 forecasts.'},
-  {id:'choc',  hex:'#4A3728', name:'Chocolate', pantone:'19-1015 TCX Chocolate Brown'},
-  {id:'esp',   hex:'#3B322A', name:'Espresso',  pantone:'',
+  {id:'choc',   hex:'#4A3728', name:'Chocolate',  pantone:'19-1015 TCX Chocolate Brown'},
+  {id:'esp',    hex:'#3B322A', name:'Espresso',   pantone:'',
    note:"Espresso-charcoal. Benjamin Moore's Silhouette and Krylon's Coffee Bean both landed here for 2026."},
 ];
 
@@ -363,6 +368,7 @@ const DEFAULT_STATE = () => ({
   swatches: PRESETS.map(p => ({...p, src:'', note:p.note||'', pantone:p.pantone||'', fav:false, custom:false})),
   designs: PRESET_DESIGNS.map(d => ({...d, colors:{...d.colors}})),
   sel:'camel',
+  known: PRESETS.map(p => p.id),
 });
 let S = DEFAULT_STATE();
 
@@ -400,7 +406,7 @@ function sanitize(s){
   const out = {
     bd:   Object.keys(BACKDROPS).includes(s.bd) ? s.bd : d.bd,
     part: PARTS.some(p=>p.key===s.part) ? s.part : d.part,
-    colors:{}, swatches:[], designs:[], sel:''
+    colors:{}, swatches:[], designs:[], known:[], sel:''
   };
   PARTS.forEach(p=>{ out.colors[p.key] = norm(s.colors?.[p.key]) || d.colors[p.key]; });
   const seen = new Set();
@@ -426,9 +432,27 @@ function sanitize(s){
     dseen.add(id);
     out.designs.push({id, name:str(raw?.name,120), colors:c});
   });
+  out.known = (Array.isArray(s.known) ? s.known : []).slice(0,200)
+                .filter(v => typeof v === 'string').map(v => v.slice(0,40));
   if(!out.swatches.length) out.swatches = d.swatches;
   out.sel = out.swatches.some(w=>w.id===s.sel) ? s.sel : out.swatches[0].id;
   return out;
+}
+/* Colors added to PRESETS after someone last opened the page should appear in
+   their palette without wiping the work they have already done. Anything they
+   deliberately deleted stays deleted, because its id is in `known`. */
+function mergeNewPresets(st, trustKnown){
+  const known = new Set(trustKnown ? st.known : st.swatches.map(w=>w.id));
+  let added = 0;
+  PRESETS.forEach(pr=>{
+    if(known.has(pr.id)) return;
+    if(st.swatches.some(w=>w.id===pr.id || w.hex===pr.hex)) return;
+    st.swatches.push({...pr, src:'', note:pr.note||'', pantone:pr.pantone||'',
+                      fav:false, custom:false});
+    added++;
+  });
+  st.known = PRESETS.map(pr=>pr.id);
+  return added;
 }
 function clearHash(){
   try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
@@ -436,9 +460,21 @@ function clearHash(){
 function hydrate(){
   const h = location.hash.slice(1);
   if(h){
-    try{ S = sanitize(dec(h)); save(); clearHash(); return; }catch(e){ clearHash(); }
+    try{
+      const raw = dec(h);
+      S = sanitize(raw); mergeNewPresets(S, Array.isArray(raw.known));
+      save(); clearHash(); return;
+    }catch(e){ clearHash(); }
   }
-  try{ const raw = localStorage.getItem(KEY); if(raw) S = sanitize(JSON.parse(raw)); }catch(e){}
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw){
+      const o = JSON.parse(raw);
+      S = sanitize(o);
+      const n = mergeNewPresets(S, Array.isArray(o.known));
+      if(n) save();
+    }
+  }catch(e){}
 }
 
 let toastT;
