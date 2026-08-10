@@ -216,6 +216,7 @@
           </div>
         </div>
         <div class="stage-bar">
+          <button class="btn btn-primary" data-save-design>Save this design</button>
           <div class="bar-group">
             <span class="seg-label">Backdrop</span>
             <div class="seg" id="bdSeg">
@@ -232,6 +233,19 @@
       <section class="card">
         <p class="eyebrow">Painting which part</p>
         <div class="parts" id="parts"></div>
+      </section>
+
+      <section class="card">
+        <p class="eyebrow">Saved designs</p>
+        <p class="hint" style="margin:0 0 12px">A design is the boot, the strap and the logo
+          saved together as one colorway.</p>
+        <div class="row" style="margin-bottom:12px">
+          <input type="text" id="designName" maxlength="80"
+                 placeholder="Name this design&hellip;" aria-label="Name for this design"
+                 style="flex:1; min-width:140px">
+          <button class="btn btn-primary" data-save-design>Save this design</button>
+        </div>
+        <div class="favs" id="designs"></div>
       </section>
 
       <section class="card">
@@ -272,17 +286,6 @@
       <section class="card">
         <p class="eyebrow">Favorites</p>
         <div class="favs" id="favs"></div>
-      </section>
-
-      <section class="card">
-        <p class="eyebrow">Saved designs</p>
-        <div class="row" style="margin-bottom:12px">
-          <input type="text" id="designName" maxlength="80"
-                 placeholder="Name this design&hellip;" aria-label="Name for this design"
-                 style="flex:1; min-width:140px">
-          <button class="btn btn-primary" id="saveDesign">Save this design</button>
-        </div>
-        <div class="favs" id="designs"></div>
       </section>
 
       <section class="card">
@@ -636,7 +639,7 @@ $('#addSwatch').addEventListener('click', ()=>{
   renderAll(); $('#dNameIn').focus(); toast('Added to palette');
 });
 
-$('#saveDesign').addEventListener('click', ()=>{
+function saveDesign(){
   const name = ($('#designName').value || '').trim() || suggestName(S.colors);
   const colors = {};
   PARTS.forEach(p=>{ colors[p.key] = S.colors[p.key]; });
@@ -645,7 +648,8 @@ $('#saveDesign').addEventListener('click', ()=>{
   S.designs.unshift({id:uid('d'), name:name.slice(0,120), colors});
   $('#designName').value='';
   renderAll(); toast(`Saved "${name}"`);
-});
+}
+document.querySelectorAll('[data-save-design]').forEach(b=>b.addEventListener('click', saveDesign));
 $('#designs').addEventListener('click', e=>{
   const r=e.target.closest('[data-drm]'); if(r){ removeDesign(r.dataset.drm); return; }
   const l=e.target.closest('[data-load]'); if(l) loadDesign(l.dataset.load);
@@ -655,7 +659,7 @@ $('#designs').addEventListener('keydown', e=>{
   const r=e.target.closest('[data-drm]');
   if(r){ e.preventDefault(); removeDesign(r.dataset.drm); }
 });
-$('#designName').addEventListener('keydown', e=>{ if(e.key==='Enter') $('#saveDesign').click(); });
+$('#designName').addEventListener('keydown', e=>{ if(e.key==='Enter') saveDesign(); });
 function loadDesign(id){
   const d=S.designs.find(x=>x.id===id); if(!d) return;
   PARTS.forEach(p=>{ S.colors[p.key]=d.colors[p.key]; });
